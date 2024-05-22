@@ -1,0 +1,5 @@
+Steps
+- npm install
+- write db details in .env file
+- set up the mysql database
+- npm start
