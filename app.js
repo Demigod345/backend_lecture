@@ -19,9 +19,45 @@ app.get('/',(req,res)=>{
     res.send("Hello World");
 })
 
+// middleware to log all requests
+app.use((req, res, next) => {
+    console.log(req.method + " request_ for " + req.originalUrl);
+    next();
+});
+
+// middleware to log all requests to /users
+app.use("/users", (req,res,next)=>{
+    console.log(req.method + " request for " + req.originalUrl);
+    next();
+})
+
+// middleware to authenticate user
+const authenticateUser = (req, res, next) => {
+    // Check if user is authenticated
+    // If authenticated, call next()
+    // If not authenticated, send 401 Unauthorized response
+    if (req.headers.authorization === "Bearer <token>") {
+        next();
+    } else {
+        res.status(401).send("Unauthorized");
+    }
+};
+
+// middleware to validate request body
+const validateRequestBody = (req, res, next) => {
+    // Check if request body is valid
+    // If valid, call next()
+    // If not valid, send 400 Bad Request response
+    if (req.body && req.body.name && req.body.address && req.body.country) {
+        next();
+    } else {
+        res.status(400).send("Bad Request. Request body is invalid!");
+    }
+};
+
 // Create
 // create a new user
-app.post("/users/add", async  (request, response)=>{
+app.post("/users/add", validateRequestBody, authenticateUser, async  (request, response)=>{
     try{
         const data = request.body;
         console.log(data)
@@ -60,7 +96,7 @@ app.get("/users/:id", async (request, response) => {
 
 // Update
 // Update a user
-app.put("/users/update/:id", async (request, response) => {
+app.put("/users/update/:id", validateRequestBody, authenticateUser, async (request, response) => {
     try{
         const data  =   request.body;
         const query =   `update users set name = "${mysql.escape(data.name)}", address = "${mysql.escape(data.address)}", 
@@ -75,7 +111,7 @@ app.put("/users/update/:id", async (request, response) => {
 
 // Delete
 // Delete a user
-app.delete("/users/delete/:id", async (request, response) => {
+app.delete("/users/delete/:id", authenticateUser, async (request, response) => {
     try{
         const query = `delete from users where id = ${mysql.escape(request.params.id)}`;
         const deleteFromDatabase = await runDBCommand(query);
