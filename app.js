@@ -1,8 +1,14 @@
 const express = require('express');
 const dbConn = require('./config/database.js');
 const mysql = require("mysql2");
+var path = require('path');
 
 const app =express();
+
+// Setup EJS view engine
+app.set('views', path.join(__dirname, 'views'));
+app.set('view engine', 'ejs');
+app.use(express.static('./public'));
 
 app.use(express.json());
 
@@ -16,7 +22,7 @@ const runDBCommand = (query) => {
 }
 
 app.get('/',(req,res)=>{
-    res.send("Hello World");
+    res.render('home');
 })
 
 // middleware to log all requests
@@ -54,6 +60,14 @@ const validateRequestBody = (req, res, next) => {
         res.status(400).send("Bad Request. Request body is invalid!");
     }
 };
+
+// Render all users
+app.get('/users',async (req,res)=>{
+    console.log("Fetching all users")
+    query = "select * from users";
+    const result = await runDBCommand(query);
+    res.render('users', {users: result});
+})
 
 // Create
 // create a new user
