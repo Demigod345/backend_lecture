@@ -1,6 +1,8 @@
 const express = require('express');
 const dbConn = require('./config/database.js');
 const mysql = require("mysql2");
+const bcrypt = require('bcrypt');
+var bodyParser = require('body-parser');
 var path = require('path');
 
 const app =express();
@@ -10,7 +12,9 @@ app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'ejs');
 app.use(express.static('./public'));
 
-app.use(express.json());
+// use body parser to parse request body
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
 
 const runDBCommand = (query) => {
     return new Promise((resolve, reject) => {
@@ -19,6 +23,12 @@ const runDBCommand = (query) => {
             return resolve(result);
         })
     })
+}
+
+async function hashPassword(password) {
+    const saltRounds = 10;
+    const hash = await bcrypt.hash(password, saltRounds);
+    return hash;
 }
 
 app.get('/',(req,res)=>{
@@ -60,6 +70,84 @@ const validateRequestBody = (req, res, next) => {
         res.status(400).send("Bad Request. Request body is invalid!");
     }
 };
+
+// Login
+app.post("/login", async (request, response) => {
+    try {
+        const { username, password } = request.body;
+        // Check if username and password are valid
+        // If valid, generate and return a JWT token
+        // If not valid, send 401 Unauthorized response
+        var query = `select * from credentials where username = ${mysql.escape(username)}`;
+
+        const user = await runDBCommand(`select * from credentials where username = ${mysql.escape(username)}`); 
+        if(user.length == 0) {
+            response.status(409).send("Username doesn't exist");
+            return;
+        }
+
+        bcrypt.compare(password, user[0].hash).then((result) => {
+            if(!result) {
+                response.status(401).send("Invalid username or password");
+                return;
+            }
+            response.status(200).send("Logged in successfully");
+        }).catch((err) => {
+            console.log(err);
+            response.status(401).send("Invalid username or password");
+        });
+        
+    } catch (err) {
+        console.log(err);
+        response.status(500).send("Error logging in");
+    }
+});
+
+// Signup
+app.post("/signup", async (request, response) => {
+    try {
+        const { username, password, confirmPassword } = request.body;
+
+        if(password !== confirmPassword) {
+            response.status(400).send("Passwords do not match");
+            return;
+        }
+        if (password.length < 8) {
+            response.status(400).send("Password should be atleast 8 characters long");
+            return;
+        }
+        // Check if username is available
+        var query = `select * from credentials where username = ${mysql.escape(username)}`;
+        console.log(username + " : " + query);
+        const user = await runDBCommand(query); 
+        if(user.length > 0) {
+            response.status(409).send("Username already exists");
+            return;
+        }else{
+            console.log(user);
+        }
+        // Create user
+        var hash = await hashPassword(password);
+        console.log(hash);
+
+        query = `insert into credentials (username, hash) values (${mysql.escape(username)}, ${mysql.escape(hash)})`;
+        const result = await runDBCommand(query);
+        response.status(201).send(`User Signed up successfully with id ${result.insertId}`)
+        // if (isUsernameAvailable(username)) {
+        //     createUser(username, password);
+        //     response.status(201).send("User created successfully");
+        // } else {
+        //     response.status(409).send("Username already exists");
+        // }
+    } catch (err) {
+        console.log(err);
+        response.status(500).redirect("/");
+    }
+});
+
+
+
+
 
 // Render all users
 app.get('/users',async (req,res)=>{
